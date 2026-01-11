@@ -1,0 +1,15 @@
+{
+  "AppSettings": {
+    "Token": "Moja_Bardzo_Dluga_I_Bardzo_Tajna_Wiadomosc_123_456_789_000!_dodatkowe_znaki_dla_bezpieczeństwa!"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Database=warehouse_management;Username=admin;Password=password123"
+  }
+}

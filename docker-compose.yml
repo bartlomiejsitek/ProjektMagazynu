@@ -1,31 +1,36 @@
 services:
   db:
-    image: postgres:15
+    image: postgres:16
     container_name: warehouse_db
-    restart: unless-stopped
     environment:
-      POSTGRES_USER: ws_user
-      POSTGRES_PASSWORD: ws_pass
-      POSTGRES_DB: warehouse_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: warehouse_management
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d warehouse_management"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: warehouse_backend
-    restart: unless-stopped
-    environment:
-      ASPNETCORE_ENVIRONMENT: "Production"
-      ASPNETCORE_URLS: "http://+:80"
-
+    build: ./backend
+    container_name: warehouse_api
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "5000:80"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Database=warehouse_management;Username=admin;Password=password123
+      - ASPNETCORE_ENVIRONMENT=Development
+      - AppSettings__Token=Moja_Bardzo_Dluga_I_Bardzo_Tajna_Wiadomosc_123_456_789_000!_dodatkowe_znaki_dla_bezpieczeństwa!
+      
+  frontend:  
+    build: ./frontend
+    container_name: warehouse_ui
+    ports:
+      - "3000:80"
     depends_on:
-      - db
-
-volumes:
-  postgres_data:
+      - backend
