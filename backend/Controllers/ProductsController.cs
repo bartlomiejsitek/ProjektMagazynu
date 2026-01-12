@@ -27,7 +27,6 @@ namespace backend.Controllers
         [HttpPost]
         public async Task<ActionResult<Product>> AddProduct(Product product)
         {
-            // Sprawdzamy czy magazyn istnieje
             var warehouseExists = await _context.Warehouses.AnyAsync(w => w.Id == product.WarehouseId);
             if (!warehouseExists) return BadRequest("Podany magazyn nie istnieje.");
 
@@ -63,7 +62,7 @@ namespace backend.Controllers
 
             _context.Products.Remove(product);
             await _context.SaveChangesAsync();
-            return NoContent();
+            return Ok();
         }
     }
 }
