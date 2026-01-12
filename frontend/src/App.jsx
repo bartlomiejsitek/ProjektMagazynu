@@ -3,26 +3,58 @@ import api from './api';
 import ProductForm from './ProductForm';
 
 function App() {
+  // Stany autoryzacji
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
-  const [products, setProducts] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
+  // Danych
+  const [products, setProducts] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+
+  // Filtrowania
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterWarehouse, setFilterWarehouse] = useState('');
+
+  // Formularza
+  const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  // Debouncing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const fetchProducts = async () => {
     try {
-      const res = await api.get('/Products');
+      const res = await api.get(`/Products?search=${debouncedSearch}&warehouseId=${filterWarehouse}`);
       setProducts(res.data);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Błąd pobierania produktów:", err);
+    }
   };
 
-  useEffect(() => { 
-    if (isLoggedIn) fetchProducts(); 
-  }, [isLoggedIn]);
+  const fetchWarehouses = async () => {
+    try {
+      const res = await api.get('/Warehouses');
+      setWarehouses(res.data);
+    } catch (err) {
+      console.error("Błąd pobierania magazynów:", err);
+    }
+  };
 
-  // funkcja logowania
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchProducts();
+      if (warehouses.length === 0) fetchWarehouses();
+    }
+  }, [isLoggedIn, debouncedSearch, filterWarehouse]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -31,7 +63,7 @@ function App() {
       setIsLoggedIn(true);
       setLoginError('');
     } catch (err) {
-      setLoginError('Błędny login lub hasło!');
+      setLoginError('Nieprawidłowy login lub hasło.');
     }
   };
 
@@ -45,65 +77,71 @@ function App() {
       setShowForm(false);
       setEditingProduct(null);
       fetchProducts();
-    } catch (err) { alert("Błąd zapisu!"); }
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("Czy na pewno usunąć?")) {
-      await api.delete(`/Products/${id}`);
-      fetchProducts();
+    } catch (err) {
+      alert("Błąd podczas zapisu produktu.");
     }
   };
 
-  // logowanie
+  const handleDelete = async (id) => {
+    if (window.confirm("Czy na pewno chcesz usunąć ten produkt?")) {
+      try {
+        await api.delete(`/Products/${id}`);
+        fetchProducts();
+      } catch (err) {
+        alert("Błąd podczas usuwania.");
+      }
+    }
+  };
+
+  // Widok przed logowaniem
   if (!isLoggedIn) {
     return (
-      <div style={{ padding: '50px', textAlign: 'center', maxWidth: '400px', margin: 'auto' }}>
-        <h1>🔐 Logowanie</h1>
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <input 
-            type="text" 
-            placeholder="Użytkownik" 
-            value={username} 
-            onChange={e => setUsername(e.target.value)} 
-            required 
-          />
-          <input 
-            type="password" 
-            placeholder="Hasło" 
-            value={password} 
-            onChange={e => setPassword(e.target.value)} 
-            required 
-          />
-          <button type="submit" style={{ background: '#28a745', color: 'white', padding: '10px' }}>
-            Zaloguj się
-          </button>
-        </form>
-        {loginError && <p style={{ color: 'red' }}>{loginError}</p>}
+      <div style={{ padding: '100px 20px', textAlign: 'center', maxWidth: '400px', margin: 'auto' }}>
+        <h1 style={{ color: 'white' }}>🏢 System Magazynowy</h1>
+        <div style={{ background: '#222', padding: '30px', borderRadius: '10px', border: '1px solid #444' }}>
+          <h2 style={{ color: 'white', marginTop: 0 }}>Zaloguj się</h2>
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <input 
+              type="text" placeholder="Nazwa użytkownika" 
+              value={username} onChange={e => setUsername(e.target.value)} 
+              style={{ padding: '10px' }} required 
+            />
+            <input 
+              type="password" placeholder="Hasło" 
+              value={password} onChange={e => setPassword(e.target.value)} 
+              style={{ padding: '10px' }} required 
+            />
+            <button type="submit" style={{ padding: '10px', background: '#28a745', color: 'white', border: 'none', cursor: 'pointer' }}>
+              Zaloguj
+            </button>
+          </form>
+          {loginError && <p style={{ color: '#ff4d4d', marginTop: '15px' }}>{loginError}</p>}
+        </div>
       </div>
     );
   }
 
-  // po logowaniu
+  // Widok po zalogowaniu
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Zarządzanie Magazynem</h1>
+    <div style={{ padding: '20px', color: 'white', maxWidth: '1200px', margin: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+        <h1> Panel Zarządzania Magazynem</h1>
         <button 
-            onClick={() => { localStorage.removeItem('token'); setIsLoggedIn(false); }}
-            style={{ background: '#dc3545', color: 'white' }}
+          onClick={() => { localStorage.removeItem('token'); setIsLoggedIn(false); }}
+          style={{ background: '#dc3545', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
         >
           Wyloguj
         </button>
       </div>
 
       <button 
-        onClick={() => { setShowForm(true); setEditingProduct(null); }} 
-        style={{ margin: '20px 0', background: 'blue', color: 'white', padding: '10px 20px' }}
+        onClick={() => { setShowForm(true); setEditingProduct(null); }}
+        style={{ background: '#007bff', color: 'white', padding: '12px 25px', border: 'none', borderRadius: '5px', cursor: 'pointer', marginBottom: '20px' }}
       >
-        + Dodaj Produkt
+        + Dodaj Nowy Produkt
       </button>
 
+      {/* Formularz */}
       {showForm && (
         <ProductForm 
           productToEdit={editingProduct} 
@@ -112,33 +150,83 @@ function App() {
         />
       )}
 
-      <table border="1" style={{ width: '100%', marginTop: '20px', textAlign: 'left', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#333', color: 'white' }}>
-            <th style={{ padding: '10px' }}>Nazwa</th>
-            <th>SKU</th>
-            <th>Ilość</th>
-            <th>Cena</th>
-            <th>Magazyn</th>
-            <th>Akcje</th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.map(p => (
-            <tr key={p.id}>
-              <td style={{ padding: '10px' }}>{p.name}</td>
-              <td>{p.sku}</td>
-              <td>{p.quantity}</td>
-              <td>{p.price} zł</td>
-              <td>{p.warehouse?.name}</td>
-              <td>
-                <button onClick={() => { setEditingProduct(p); setShowForm(true); }}>Edytuj</button>
-                <button onClick={() => handleDelete(p.id)} style={{ color: 'red', marginLeft: '5px' }}>Usuń</button>
-              </td>
+      {/* Filtry */}
+      <div style={{ 
+        display: 'flex', gap: '20px', background: '#222', padding: '20px', 
+        borderRadius: '8px', marginBottom: '20px', border: '1px solid #444', alignItems: 'flex-end'
+      }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label style={{ fontSize: '13px', color: '#aaa' }}>Szukaj (Nazwa lub SKU):</label>
+          <input 
+            type="text" placeholder="Wpisz fragment nazwy..." 
+            value={searchTerm} onChange={e => setSearchTerm(e.target.value)} 
+            style={{ padding: '10px', background: '#333', color: 'white', border: '1px solid #555' }}
+          />
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label style={{ fontSize: '13px', color: '#aaa' }}>Magazyn:</label>
+          <select 
+            value={filterWarehouse} onChange={e => setFilterWarehouse(e.target.value)}
+            style={{ padding: '10px', background: '#333', color: 'white', border: '1px solid #555' }}
+          >
+            <option value="">Wszystkie magazyny</option>
+            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        </div>
+
+        <button 
+          onClick={() => { setSearchTerm(''); setFilterWarehouse(''); }}
+          style={{ padding: '10px 20px', background: '#555', color: 'white', border: 'none', cursor: 'pointer' }}
+        >
+          Resetuj filtry
+        </button>
+      </div>
+
+      {/* Tabela prodoktow */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ background: '#333', borderBottom: '2px solid #444' }}>
+              <th style={{ padding: '15px' }}>Nazwa</th>
+              <th>SKU</th>
+              <th>Ilość</th>
+              <th>Cena</th>
+              <th>Magazyn</th>
+              <th>Akcje</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {products.map(p => (
+              <tr key={p.id} style={{ borderBottom: '1px solid #333' }}>
+                <td style={{ padding: '15px' }}>{p.name}</td>
+                <td>{p.sku}</td>
+                <td>{p.quantity}</td>
+                <td>{p.price.toFixed(2)} zł</td>
+                <td>{p.warehouse?.name || 'Nieprzypisany'}</td>
+                <td>
+                  <button 
+                    onClick={() => { setEditingProduct(p); setShowForm(true); }}
+                    style={{ marginRight: '10px', cursor: 'pointer' }}
+                  >
+                    Edytuj
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(p.id)} 
+                    style={{ color: '#ff4d4d', cursor: 'pointer' }}
+                  >
+                    Usuń
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {products.length === 0 && (
+        <p style={{ textAlign: 'center', color: '#aaa', marginTop: '40px' }}>Brak produktów do wyświetlenia.</p>
+      )}
     </div>
   );
 }

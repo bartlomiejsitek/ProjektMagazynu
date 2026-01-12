@@ -19,9 +19,21 @@ namespace backend.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<Product>>> GetProducts([FromQuery] string? search, [FromQuery] int? warehouseId)
         {
-            return await _context.Products.Include(p => p.Warehouse).ToListAsync();
+            var query = _context.Products.Include(p => p.Warehouse).AsQueryable();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.ToLower();
+                query = query.Where(p => p.Name.ToLower().Contains(s) || p.SKU.ToLower().Contains(s));
+            }
+
+            if (warehouseId.HasValue && warehouseId.Value > 0)
+            {
+                query = query.Where(p => p.WarehouseId == warehouseId.Value);
+            }
+
+            return await query.ToListAsync();
         }
 
         [HttpPost]

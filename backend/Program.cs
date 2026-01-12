@@ -1,5 +1,5 @@
 using backend.Data;
-using backend.Entities; // Zmienione z Models na Entities
+using backend.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;

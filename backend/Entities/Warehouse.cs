@@ -13,8 +13,7 @@ namespace backend.Entities
 
         public string Location { get; set; } = string.Empty;
 
-        // Relacja: Jeden magazyn ma wiele produktów
-        // JsonIgnore zapobiega pętli nieskończonej przy serializacji do JSON
+        // Jeden magazyn - wiele produktow
         [JsonIgnore]
         public ICollection<Product> Products { get; set; } = new List<Product>();
     }
