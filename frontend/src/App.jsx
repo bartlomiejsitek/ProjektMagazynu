@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from './api';
 import ProductForm from './ProductForm';
+// --- STEP 4: Import powiadomień ---
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
   // Stany autoryzacji
@@ -12,6 +15,7 @@ function App() {
   // Danych
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [isLoading, setIsLoading] = useState(false); // --- STEP 4: Stan ładowania ---
 
   // Filtrowania
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,11 +35,14 @@ function App() {
   }, [searchTerm]);
 
   const fetchProducts = async () => {
+    setIsLoading(true); // --- Start ładowania ---
     try {
       const res = await api.get(`/Products?search=${debouncedSearch}&warehouseId=${filterWarehouse}`);
       setProducts(res.data);
     } catch (err) {
-      console.error("Błąd pobierania produktów:", err);
+      toast.error("Błąd pobierania produktów!");
+    } finally {
+      setIsLoading(false); // --- Koniec ładowania ---
     }
   };
 
@@ -62,23 +69,34 @@ function App() {
       localStorage.setItem('token', res.data);
       setIsLoggedIn(true);
       setLoginError('');
+      toast.success("Zalogowano pomyślnie!");
     } catch (err) {
       setLoginError('Nieprawidłowy login lub hasło.');
+      toast.error("Błąd logowania.");
     }
   };
 
   const handleSaveProduct = async (data) => {
+    setIsLoading(true);
     try {
       if (editingProduct) {
         await api.put(`/Products/${editingProduct.id}`, data);
+        toast.success("Zaktualizowano produkt!");
       } else {
         await api.post('/Products', data);
+        toast.success("Dodano nowy produkt!");
       }
       setShowForm(false);
       setEditingProduct(null);
       fetchProducts();
     } catch (err) {
-      alert("Błąd podczas zapisu produktu.");
+      // Wyciąganie błędów walidacji z backendu
+      const backendError = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat()[0] 
+        : "Wystąpił błąd podczas zapisu.";
+      toast.error(backendError);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -86,9 +104,10 @@ function App() {
     if (window.confirm("Czy na pewno chcesz usunąć ten produkt?")) {
       try {
         await api.delete(`/Products/${id}`);
+        toast.info("Produkt został usunięty.");
         fetchProducts();
       } catch (err) {
-        alert("Błąd podczas usuwania.");
+        toast.error("Błąd podczas usuwania.");
       }
     }
   };
@@ -97,7 +116,8 @@ function App() {
   if (!isLoggedIn) {
     return (
       <div style={{ padding: '100px 20px', textAlign: 'center', maxWidth: '400px', margin: 'auto' }}>
-        <h1 style={{ color: 'white' }}>🏢 System Magazynowy</h1>
+        <ToastContainer theme="dark" position="top-center" />
+        <h1 style={{ color: 'white' }}>System Magazynowy</h1>
         <div style={{ background: '#222', padding: '30px', borderRadius: '10px', border: '1px solid #444' }}>
           <h2 style={{ color: 'white', marginTop: 0 }}>Zaloguj się</h2>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -124,6 +144,9 @@ function App() {
   // Widok po zalogowaniu
   return (
     <div style={{ padding: '20px', color: 'white', maxWidth: '1200px', margin: 'auto' }}>
+      {/* Kontener powiadomień */}
+      <ToastContainer theme="dark" position="bottom-right" autoClose={3000} />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <h1> Panel Zarządzania Magazynem</h1>
         <button 
@@ -135,6 +158,7 @@ function App() {
       </div>
 
       <button 
+        disabled={isLoading}
         onClick={() => { setShowForm(true); setEditingProduct(null); }}
         style={{ background: '#007bff', color: 'white', padding: '12px 25px', border: 'none', borderRadius: '5px', cursor: 'pointer', marginBottom: '20px' }}
       >
@@ -183,49 +207,52 @@ function App() {
         </button>
       </div>
 
-      {/* Tabela prodoktow */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ background: '#333', borderBottom: '2px solid #444' }}>
-              <th style={{ padding: '15px' }}>Nazwa</th>
-              <th>SKU</th>
-              <th>Ilość</th>
-              <th>Cena</th>
-              <th>Magazyn</th>
-              <th>Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map(p => (
-              <tr key={p.id} style={{ borderBottom: '1px solid #333' }}>
-                <td style={{ padding: '15px' }}>{p.name}</td>
-                <td>{p.sku}</td>
-                <td>{p.quantity}</td>
-                <td>{p.price.toFixed(2)} zł</td>
-                <td>{p.warehouse?.name || 'Nieprzypisany'}</td>
-                <td>
-                  <button 
-                    onClick={() => { setEditingProduct(p); setShowForm(true); }}
-                    style={{ marginRight: '10px', cursor: 'pointer' }}
-                  >
-                    Edytuj
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(p.id)} 
-                    style={{ color: '#ff4d4d', cursor: 'pointer' }}
-                  >
-                    Usuń
-                  </button>
-                </td>
+      {/* Tabela produktów */}
+      {isLoading ? (
+        <div className="loader">⏳ Trwa przetwarzanie danych...</div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#333', borderBottom: '2px solid #444' }}>
+                <th style={{ padding: '15px' }}>Nazwa</th>
+                <th>SKU</th>
+                <th>Ilość</th>
+                <th>Cena</th>
+                <th>Magazyn</th>
+                <th>Akcje</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {products.length === 0 && (
-        <p style={{ textAlign: 'center', color: '#aaa', marginTop: '40px' }}>Brak produktów do wyświetlenia.</p>
+            </thead>
+            <tbody>
+              {products.map(p => (
+                <tr key={p.id} style={{ borderBottom: '1px solid #333' }}>
+                  <td style={{ padding: '15px' }}>{p.name}</td>
+                  <td>{p.sku}</td>
+                  <td>{p.quantity}</td>
+                  <td>{p.price.toFixed(2)} zł</td>
+                  <td>{p.warehouse?.name || 'Nieprzypisany'}</td>
+                  <td>
+                    <button 
+                      onClick={() => { setEditingProduct(p); setShowForm(true); }}
+                      style={{ marginRight: '10px', cursor: 'pointer' }}
+                    >
+                      Edytuj
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(p.id)} 
+                      style={{ color: '#ff4d4d', cursor: 'pointer' }}
+                    >
+                      Usuń
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {products.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#aaa', marginTop: '40px' }}>Brak produktów do wyświetlenia.</p>
+          )}
+        </div>
       )}
     </div>
   );

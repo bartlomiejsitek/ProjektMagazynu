@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using backend.Data;
 using backend.Entities;
 
@@ -34,6 +35,7 @@ namespace backend.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")] 
         public async Task<ActionResult<Warehouse>> CreateWarehouse(Warehouse warehouse)
         {
             _context.Warehouses.Add(warehouse);
@@ -42,6 +44,7 @@ namespace backend.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteWarehouse(int id)
         {
             var warehouse = await _context.Warehouses.FindAsync(id);
