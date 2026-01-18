@@ -26,7 +26,7 @@ Aplikacja jest w pełni skonteneryzowana. Do uruchomienia potrzebujesz jedynie z
 
 1. **Sklonuj repozytorium:**
    git clone <https://github.com/bartlomiejsitek/ProjektMagazynu>
-   cd <folder-projektu> 
+   cd <ProjektMagazynu> 
 
 2. **Uruchom projekt za pomocą Docker Compose:**
     docker-compose up --build
@@ -35,6 +35,6 @@ Aplikacja jest w pełni skonteneryzowana. Do uruchomienia potrzebujesz jedynie z
     Frontend: http://localhost:3000
     Backend (Swagger): http://localhost:5000/swagger
 
-4. **System posiada automatyczne seed danych, które tworzy startowe konto administratora:**
+4. **System posiada automatyczny seed danych, który tworzy startowe konto administratora:**
     Login: admin
     Hasło: admin123
