@@ -65,13 +65,13 @@ function ProductForm({ productToEdit, onSave, onCancel }) {
 
         <div style={fieldStyle}>
           <label>Ilość (szt.):</label>
-          <input type="number" placeholder="0" value={formData.quantity}
+          <input type="number" min="0" placeholder="0" value={formData.quantity}
             onChange={e => setFormData({...formData, quantity: e.target.value})} />
         </div>
 
         <div style={fieldStyle}>
           <label>Cena (zł):</label>
-          <input type="number" step="0.01" placeholder="0.00" value={formData.price}
+          <input type="number" min="0.01" step="0.01" placeholder="0.00" value={formData.price}
             onChange={e => setFormData({...formData, price: e.target.value})} />
         </div>
 

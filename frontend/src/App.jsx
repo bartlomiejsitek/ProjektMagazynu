@@ -1,260 +1,177 @@
 import { useState, useEffect } from 'react';
-import api from './api';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import api, { getUserRole } from './api';
 import ProductForm from './ProductForm';
-// --- STEP 4: Import powiadomień ---
+import WarehouseManagement from './WarehouseManagement';
+import TransferForm from './TransferForm';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-function App() {
-  // Stany autoryzacji
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-
-  // Danych
+function ProductsDashboard({ userRole }) {
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); // --- STEP 4: Stan ładowania ---
-
-  // Filtrowania
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterWarehouse, setFilterWarehouse] = useState('');
-
-  // Formularza
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [transferringProduct, setTransferringProduct] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Debouncing
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-    }, 500);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchProducts = async () => {
-    setIsLoading(true); // --- Start ładowania ---
-    try {
-      const res = await api.get(`/Products?search=${debouncedSearch}&warehouseId=${filterWarehouse}`);
-      setProducts(res.data);
-    } catch (err) {
-      toast.error("Błąd pobierania produktów!");
-    } finally {
-      setIsLoading(false); // --- Koniec ładowania ---
-    }
-  };
-
-  const fetchWarehouses = async () => {
-    try {
-      const res = await api.get('/Warehouses');
-      setWarehouses(res.data);
-    } catch (err) {
-      console.error("Błąd pobierania magazynów:", err);
-    }
-  };
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      fetchProducts();
-      if (warehouses.length === 0) fetchWarehouses();
-    }
-  }, [isLoggedIn, debouncedSearch, filterWarehouse]);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await api.post('/Auth/login', { username, password });
-      localStorage.setItem('token', res.data);
-      setIsLoggedIn(true);
-      setLoginError('');
-      toast.success("Zalogowano pomyślnie!");
-    } catch (err) {
-      setLoginError('Nieprawidłowy login lub hasło.');
-      toast.error("Błąd logowania.");
-    }
-  };
-
-  const handleSaveProduct = async (data) => {
+  const fetchData = async () => {
     setIsLoading(true);
     try {
-      if (editingProduct) {
-        await api.put(`/Products/${editingProduct.id}`, data);
-        toast.success("Zaktualizowano produkt!");
-      } else {
-        await api.post('/Products', data);
-        toast.success("Dodano nowy produkt!");
-      }
-      setShowForm(false);
-      setEditingProduct(null);
-      fetchProducts();
+      const [prodRes, warRes] = await Promise.all([
+        api.get(`/Products?search=${debouncedSearch}&warehouseId=${filterWarehouse}`),
+        api.get('/Warehouses')
+      ]);
+      setProducts(prodRes.data);
+      setWarehouses(warRes.data);
+    } catch (err) { toast.error("Błąd pobierania danych"); }
+    finally { setIsLoading(false); }
+  };
+
+  useEffect(() => { fetchData(); }, [debouncedSearch, filterWarehouse]);
+
+  const handleSaveProduct = async (data) => {
+    try {
+      if (editingProduct) await api.put(`/Products/${editingProduct.id}`, data);
+      else await api.post('/Products', data);
+      setShowForm(false); fetchData(); toast.success("Zapisano!");
+    } catch (err) { toast.error("Błąd zapisu"); }
+  };
+
+  const handleTransferProduct = async (data) => {
+    setIsLoading(true);
+    try {
+      await api.post('/Products/transfer', data);
+      toast.success("Produkt został pomyślnie przeniesiony!");
+      setTransferringProduct(null);
+      fetchData();
     } catch (err) {
-      // Wyciąganie błędów walidacji z backendu
-      const backendError = err.response?.data?.errors 
-        ? Object.values(err.response.data.errors).flat()[0] 
-        : "Wystąpił błąd podczas zapisu.";
-      toast.error(backendError);
-    } finally {
-      setIsLoading(false);
-    }
+      toast.error(err.response?.data || "Błąd przenoszenia.");
+    } finally { setIsLoading(false); }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Czy na pewno chcesz usunąć ten produkt?")) {
-      try {
-        await api.delete(`/Products/${id}`);
-        toast.info("Produkt został usunięty.");
-        fetchProducts();
-      } catch (err) {
-        toast.error("Błąd podczas usuwania.");
-      }
+    if (window.confirm("Usunąć produkt?")) {
+      await api.delete(`/Products/${id}`);
+      fetchData(); toast.info("Usunięto");
     }
   };
 
-  // Widok przed logowaniem
+  return (
+    <>
+      <button onClick={() => { setShowForm(true); setEditingProduct(null); setTransferringProduct(null); }} style={{ margin: '20px 0', background: '#007bff', color: 'white' }}>
+        + Dodaj Produkt
+      </button>
+
+      {showForm && <ProductForm productToEdit={editingProduct} onSave={handleSaveProduct} onCancel={() => setShowForm(false)} />}
+      
+      {transferringProduct && (
+        <TransferForm 
+            productToMove={transferringProduct} 
+            onSave={handleTransferProduct} 
+            onCancel={() => setTransferringProduct(null)} 
+        />
+      )}
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: '#222', padding: '15px', borderRadius: '8px' }}>
+        <input placeholder="Szukaj..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        <select value={filterWarehouse} onChange={e => setFilterWarehouse(e.target.value)}>
+          <option value="">Wszystkie magazyny</option>
+          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+        </select>
+      </div>
+
+      {isLoading ? <p>Ładowanie...</p> : (
+        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+          <thead><tr style={{ background: '#333' }}><th style={{padding: '10px'}}>Nazwa</th><th>SKU</th><th>Ilość</th><th>Cena</th><th>Magazyn</th><th>Akcje</th></tr></thead>
+          <tbody>
+            {products.map(p => (
+              <tr key={p.id} style={{ borderBottom: '1px solid #333' }}>
+                <td style={{padding: '10px'}}>{p.name}</td><td>{p.sku}</td><td>{p.quantity}</td><td>{p.price} zł</td><td>{p.warehouse?.name}</td>
+                <td>
+                  <button onClick={() => { setEditingProduct(p); setShowForm(true); setTransferringProduct(null); }}>Edytuj</button>
+                  <button onClick={() => { setTransferringProduct(p); setShowForm(false); setEditingProduct(null); }} style={{ marginLeft: '5px', background: '#3b82f6', color: 'white' }}>Przenieś</button>
+                  {userRole === 'Admin' && <button onClick={() => handleDelete(p.id)} style={{ color: 'red', marginLeft: '5px' }}>Usuń</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
+  const [userRole, setUserRole] = useState(getUserRole());
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setIsLoggedIn(false);
+    setUserRole(null);
+  };
+
   if (!isLoggedIn) {
     return (
-      <div style={{ padding: '100px 20px', textAlign: 'center', maxWidth: '400px', margin: 'auto' }}>
-        <ToastContainer theme="dark" position="top-center" />
-        <h1 style={{ color: 'white' }}>System Magazynowy</h1>
-        <div style={{ background: '#222', padding: '30px', borderRadius: '10px', border: '1px solid #444' }}>
-          <h2 style={{ color: 'white', marginTop: 0 }}>Zaloguj się</h2>
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <input 
-              type="text" placeholder="Nazwa użytkownika" 
-              value={username} onChange={e => setUsername(e.target.value)} 
-              style={{ padding: '10px' }} required 
-            />
-            <input 
-              type="password" placeholder="Hasło" 
-              value={password} onChange={e => setPassword(e.target.value)} 
-              style={{ padding: '10px' }} required 
-            />
-            <button type="submit" style={{ padding: '10px', background: '#28a745', color: 'white', border: 'none', cursor: 'pointer' }}>
-              Zaloguj
-            </button>
-          </form>
-          {loginError && <p style={{ color: '#ff4d4d', marginTop: '15px' }}>{loginError}</p>}
-        </div>
+      <div style={{ padding: '100px', textAlign: 'center' }}>
+        <ToastContainer theme="dark" />
+        <h1>{isRegistering ? 'Rejestracja' : 'System Magazynowy'}</h1>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const endpoint = isRegistering ? '/Auth/register' : '/Auth/login';
+          try {
+            const res = await api.post(endpoint, { username: e.target.u.value, password: e.target.p.value });
+            if (isRegistering) { setIsRegistering(false); toast.success("Zarejestrowano!"); }
+            else { localStorage.setItem('token', res.data); setUserRole(getUserRole()); setIsLoggedIn(true); }
+          } catch { toast.error("Błąd autoryzacji"); }
+        }}>
+          <input name="u" placeholder="Użytkownik" required /><br/><br/>
+          <input name="p" type="password" placeholder="Hasło" required /><br/><br/>
+          <button type="submit">{isRegistering ? 'Zarejestruj' : 'Zaloguj'}</button>
+        </form>
+        <button onClick={() => setIsRegistering(!isRegistering)} style={{ marginTop: '20px', background: 'none', color: '#007bff' }}>
+          {isRegistering ? 'Zaloguj się' : 'Zarejestruj się'}
+        </button>
       </div>
     );
   }
 
-  // Widok po zalogowaniu
   return (
-    <div style={{ padding: '20px', color: 'white', maxWidth: '1200px', margin: 'auto' }}>
-      {/* Kontener powiadomień */}
-      <ToastContainer theme="dark" position="bottom-right" autoClose={3000} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1> Panel Zarządzania Magazynem</h1>
-        <button 
-          onClick={() => { localStorage.removeItem('token'); setIsLoggedIn(false); }}
-          style={{ background: '#dc3545', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-        >
-          Wyloguj
-        </button>
-      </div>
-
-      <button 
-        disabled={isLoading}
-        onClick={() => { setShowForm(true); setEditingProduct(null); }}
-        style={{ background: '#007bff', color: 'white', padding: '12px 25px', border: 'none', borderRadius: '5px', cursor: 'pointer', marginBottom: '20px' }}
-      >
-        + Dodaj Nowy Produkt
-      </button>
-
-      {/* Formularz */}
-      {showForm && (
-        <ProductForm 
-          productToEdit={editingProduct} 
-          onSave={handleSaveProduct} 
-          onCancel={() => { setShowForm(false); setEditingProduct(null); }} 
-        />
-      )}
-
-      {/* Filtry */}
-      <div style={{ 
-        display: 'flex', gap: '20px', background: '#222', padding: '20px', 
-        borderRadius: '8px', marginBottom: '20px', border: '1px solid #444', alignItems: 'flex-end'
-      }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <label style={{ fontSize: '13px', color: '#aaa' }}>Szukaj (Nazwa lub SKU):</label>
-          <input 
-            type="text" placeholder="Wpisz fragment nazwy..." 
-            value={searchTerm} onChange={e => setSearchTerm(e.target.value)} 
-            style={{ padding: '10px', background: '#333', color: 'white', border: '1px solid #555' }}
-          />
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <label style={{ fontSize: '13px', color: '#aaa' }}>Magazyn:</label>
-          <select 
-            value={filterWarehouse} onChange={e => setFilterWarehouse(e.target.value)}
-            style={{ padding: '10px', background: '#333', color: 'white', border: '1px solid #555' }}
-          >
-            <option value="">Wszystkie magazyny</option>
-            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-          </select>
-        </div>
-
-        <button 
-          onClick={() => { setSearchTerm(''); setFilterWarehouse(''); }}
-          style={{ padding: '10px 20px', background: '#555', color: 'white', border: 'none', cursor: 'pointer' }}
-        >
-          Resetuj filtry
-        </button>
-      </div>
-
-      {/* Tabela produktów */}
-      {isLoading ? (
-        <div className="loader">⏳ Trwa przetwarzanie danych...</div>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: '#333', borderBottom: '2px solid #444' }}>
-                <th style={{ padding: '15px' }}>Nazwa</th>
-                <th>SKU</th>
-                <th>Ilość</th>
-                <th>Cena</th>
-                <th>Magazyn</th>
-                <th>Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid #333' }}>
-                  <td style={{ padding: '15px' }}>{p.name}</td>
-                  <td>{p.sku}</td>
-                  <td>{p.quantity}</td>
-                  <td>{p.price.toFixed(2)} zł</td>
-                  <td>{p.warehouse?.name || 'Nieprzypisany'}</td>
-                  <td>
-                    <button 
-                      onClick={() => { setEditingProduct(p); setShowForm(true); }}
-                      style={{ marginRight: '10px', cursor: 'pointer' }}
-                    >
-                      Edytuj
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(p.id)} 
-                      style={{ color: '#ff4d4d', cursor: 'pointer' }}
-                    >
-                      Usuń
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {products.length === 0 && (
-            <p style={{ textAlign: 'center', color: '#aaa', marginTop: '40px' }}>Brak produktów do wyświetlenia.</p>
+    <Router>
+      <div style={{ padding: '20px' }}>
+        <ToastContainer theme="dark" position="bottom-right" />
+        
+        {/* NAWIGACJA */}
+        <nav style={{ display: 'flex', gap: '20px', alignItems: 'center', borderBottom: '1px solid #444', paddingBottom: '10px', marginBottom: '20px' }}>
+          <Link to="/" style={{ color: 'white', textDecoration: 'none', fontWeight: 'bold' }}>📋 Produkty</Link>
+          {userRole === 'Admin' && (
+            <Link to="/warehouses" style={{ color: 'white', textDecoration: 'none', fontWeight: 'bold' }}>⚙️ Zarządzaj Magazynami</Link>
           )}
-        </div>
-      )}
-    </div>
+          <div style={{ flex: 1 }}></div>
+          <span>Rola: <strong>{userRole}</strong></span>
+          <button onClick={handleLogout} style={{ background: '#dc3545' }}>Wyloguj</button>
+        </nav>
+
+        {/* DEFINICJA TRAS */}
+        <Routes>
+          <Route path="/" element={<ProductsDashboard userRole={userRole} />} />
+          <Route 
+            path="/warehouses" 
+            element={userRole === 'Admin' ? <WarehouseManagement /> : <Navigate to="/" />} 
+          />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
