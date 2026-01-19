@@ -1,6 +1,6 @@
 # System Zarządzania Magazynem
 
-Profesjonalny system magazynowy typu Fullstack, umożliwiający zarządzanie produktami, magazynami oraz przepływem towarów. 
+System magazynowy typu Fullstack, umożliwiający zarządzanie produktami, magazynami oraz przepływem towarów. 
 
 ##  Technologię
 
