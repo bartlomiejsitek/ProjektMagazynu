@@ -7,7 +7,7 @@ System magazynowy typu Fullstack, umożliwiający zarządzanie produktami, magaz
 - **Backend:** .NET 8 Web API (C#)
 - **Frontend:** React (Vite) + Axios
 - **Baza danych:** PostgreSQL 16
-- **Autentykacja:** JWT (JSON Web Token) z obsługą ról (RBAC)
+- **Uwierzytelnianie:** JWT (JSON Web Token) z obsługą ról (RBAC)
 - **ORM:** Entity Framework Core
 - **Konteneryzacja:** Docker & Docker Compose
  
